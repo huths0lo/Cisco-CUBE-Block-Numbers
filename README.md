@@ -7,7 +7,7 @@ Update Cisco CUBE routers to block inbound calls.
 3. Determine the highest rule # in the list
 4. Increment $rulenumber by 1
 5. Input from user (with validation to be sure it's a phone number entered).
-6. Send commands back to router  [ voice translation-rule 300, rule 3 reject /2345551234/ ]
+6. Send commands back to routers using cube.txt list
 
 ## Things to Look For
 I pull the initial configuration from a ```$GOLDENROUTER``` that serves as our master for the configuration.  
@@ -21,6 +21,9 @@ Script assumes 10 digit dialing, if you're outside North America you will need t
 ## Initial Configuration
 Determine your inbound dial-peer using:   ```debug voice ccapi inout```
 In this case we are using dial-peer voice 100 voip
+
+### Cube.txt File
+Update this file with the IP addresses of your CUBE routers, one per line.
 
 ### Dial Peer Configuration
 ```
