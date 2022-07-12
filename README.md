@@ -59,4 +59,4 @@ translate calling 300
 ```
 
 ## Acknowledgements 
-* Kirk Byers wrote **MOST** of the code used - [Netmiko](https://github.com/ktbyers/netmiko)
+* Thank you to Kirk Byers for writing Netmiko! - [Netmiko](https://github.com/ktbyers/netmiko)
