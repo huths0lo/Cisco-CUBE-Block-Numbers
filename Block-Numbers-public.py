@@ -1,49 +1,14 @@
 from __future__ import absolute_import, division, print_function
-import string
+import os
 from ciscoconfparse import CiscoConfParse
-from getpass import getpass
 from netmiko import ConnectHandler
-from netmiko.ssh_exception import NetMikoTimeoutException
-from netmiko.ssh_exception import NetMikoAuthenticationException
-import sys
+from netmiko import NetMikoAuthenticationException
+from json_config import block_number_config
+from dotenv import load_dotenv
 
-# my_config = """
-#      ! Config from router
-#      voice translation-rule 300
-#       rule 1 reject /1235551111/
-#       rule 2 reject /5551115555/
-#      """
+load_dotenv()
 
-print("\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n")
-print("Welcome!")
-print("This script will update the voice translation-rule 300 on CUBE routers.")
-print("CUBE routers are listed in CUBE.txt in the same directory.")
-print("")
-
-def get_input(prompt=''):
-    try:
-        line = raw_input(prompt)
-    except NameError:
-        line = input(prompt)
-    return line
-
-def get_credentials():
-    """Prompt for and return a username and password."""
-    USERNAME = get_input('Enter Username: ')
-    PASSWORD = None
-    while not PASSWORD:
-        PASSWORD = getpass()
-        password_verify = getpass('Retype your password: ')
-        if PASSWORD != password_verify:
-            print('Passwords do not match.  Try again.')
-            PASSWORD = None
-    return USERNAME, PASSWORD
-
-USERNAME, PASSWORD = get_credentials()
-
-# Get phone number from user
-print("")
-print("Enter a phone number that is 10 digits, including area code.")
+USERNAME, PASSWORD, ENABLE_SECRET = os.getenv('user_name'), os.getenv('user_pass'), os.getenv('enable_secret')
 
 def get_number():
     while True:
@@ -60,37 +25,42 @@ def get_number():
             break
     return phone_number
 
-phone_number = get_number()
+def update_routers():
+    voice_gateways = block_number_config['voice_gateways']
+    blocked_numbers = block_number_config['blocked_numbers']
+    block_numbering = [*blocked_numbers]
+    number_block = []
+    for number in block_numbering:
+        number_block.append([number, blocked_numbers[number]])
+    for gateway in voice_gateways:
+        existing_list = []
+        try:
+            net_connect = ConnectHandler(device_type='cisco_ios_ssh', ip=gateway, username=USERNAME, password=PASSWORD, secret=ENABLE_SECRET)
+        except (NetMikoAuthenticationException):
+            print(f"Invalid Credentials Entered for Voice Gateway {gateway}.")
+        net_connect.enable()
+        current_config = net_connect.send_command('show run | sec translation-rule 2')
+        cisco_obj = CiscoConfParse(current_config.splitlines())
+        match = cisco_obj.find_objects(r"voice translation-rule 2")[0].children
+        i = 1
+        for item in match:
+            split_components = item.text.split('/')
+            for split_piece in split_components:
+                if split_piece.isnumeric() and len(split_piece) == 10:
+                    existing_list.append([i, split_piece])
 
-#Gather configuration from golden router
-#Update $GOLDENROUTER with an IP address of a CUBE router
-print("Connecting to router")
-try:
-    net_connect = ConnectHandler(device_type='cisco_ios_ssh', ip='$GOLDENROUTER',
-                                 username=USERNAME, password=PASSWORD)
-except (NetMikoAuthenticationException):
-    print("Invalid Credentials Entered, Try Again.")
-    sys.exit()
 
-hostname = net_connect.find_prompt()
-print("Getting baseline configuration from: " + str(hostname) + "\n")
-net_connect.send_command('send log SCRIPT IS GETTING PRE-CHANGE TRANSLATION-RULE 300 LIST')
-current_config = net_connect.send_command('show run | sec translation-rule 300')
-print(current_config)
-# Check if the numbered entered is already being blocked
-while phone_number in current_config:
+
+
+        while phone_number in current_config:
     print("Phone number is already being blocked")
     phone_number = get_number()
 
-# Parse the lines returned by the router
-cisco_obj = CiscoConfParse(current_config.splitlines())
-# Find the voice translation rule 300
-match = cisco_obj.find_objects(r"voice translation-rule 300")
-match = match[0]
-match.children
+# Find the voice translation rule 2
+
+
 # Match on last rule in the list
-last_rule = match.children[-1]
-last_rule = last_rule.text
+
 
 # Increment rule value by 1
 new_value = int((last_rule.strip().split()[1]))
@@ -119,7 +89,7 @@ for device in devices:
             hostname = net_connect.find_prompt()
             print(hostname, file=output_file)
             net_connect.send_command('send log START - BLOCKING NUMBER ADDITION')
-            config_commands = [ 'voice translation-rule 300',
+            config_commands = [ 'voice translation-rule 2',
                                 new_rule]
             new_config = net_connect.send_config_set(config_commands)
             net_connect.send_command('send log COMPLETE - BLOCKING NUMBER ADDITION')
